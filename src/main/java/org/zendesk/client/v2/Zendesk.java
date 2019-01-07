@@ -26,6 +26,7 @@ import org.zendesk.client.v2.model.Attachment;
 import org.zendesk.client.v2.model.Audit;
 import org.zendesk.client.v2.model.Automation;
 import org.zendesk.client.v2.model.Brand;
+import org.zendesk.client.v2.model.JobResult;
 import org.zendesk.client.v2.model.Comment;
 import org.zendesk.client.v2.model.ComplianceDeletionStatus;
 import org.zendesk.client.v2.model.Field;
@@ -241,17 +242,17 @@ public class Zendesk implements Closeable {
                 handle(Ticket.class, "ticket")));
     }
 
-    public JobStatus<Ticket> importTickets(TicketImport... ticketImports) {
+    public JobStatus<JobResult> importTickets(TicketImport... ticketImports) {
         return importTickets(Arrays.asList(ticketImports));
     }
 
-    public JobStatus<Ticket> importTickets(List<TicketImport> ticketImports) {
+    public JobStatus<JobResult> importTickets(List<TicketImport> ticketImports) {
         return complete(importTicketsAsync(ticketImports));
     }
 
-    public ListenableFuture<JobStatus<Ticket>> importTicketsAsync(List<TicketImport> ticketImports) {
+    public ListenableFuture<JobStatus<JobResult>> importTicketsAsync(List<TicketImport> ticketImports) {
         return submit(req("POST", cnst("/imports/tickets/create_many.json"), JSON, json(
-                Collections.singletonMap("tickets", ticketImports))), handleJobStatus(Ticket.class));
+                Collections.singletonMap("tickets", ticketImports))), handleJobStatus(JobResult.class));
     }
 
     public Ticket getTicket(long id) {
@@ -307,17 +308,17 @@ public class Zendesk implements Closeable {
         return complete(createTicketAsync(ticket));
     }
 
-    public JobStatus<Ticket> createTickets(Ticket... tickets) {
+    public JobStatus<JobResult> createTickets(Ticket... tickets) {
         return createTickets(Arrays.asList(tickets));
     }
 
-    public JobStatus<Ticket> createTickets(List<Ticket> tickets) {
+    public JobStatus<JobResult> createTickets(List<Ticket> tickets) {
         return complete(createTicketsAsync(tickets));
     }
 
-    public ListenableFuture<JobStatus<Ticket>> createTicketsAsync(List<Ticket> tickets) {
+    public ListenableFuture<JobStatus<JobResult>> createTicketsAsync(List<Ticket> tickets) {
         return submit(req("POST", cnst("/tickets/create_many.json"), JSON, json(
-                Collections.singletonMap("tickets", tickets))), handleJobStatus(Ticket.class));
+                Collections.singletonMap("tickets", tickets))), handleJobStatus(JobResult.class));
     }
 
     public Ticket updateTicket(Ticket ticket) {
@@ -327,9 +328,9 @@ public class Zendesk implements Closeable {
                 handle(Ticket.class, "ticket")));
     }
 
-    public ListenableFuture<JobStatus<Ticket>> updateTicketsAsync(List<Ticket> tickets) {
+    public ListenableFuture<JobStatus<JobResult>> updateTicketsAsync(List<Ticket> tickets) {
         return submit(req("PUT", cnst("/tickets/update_many.json"), JSON, json(
-                Collections.singletonMap("tickets", tickets))), handleJobStatus(Ticket.class));
+                Collections.singletonMap("tickets", tickets))), handleJobStatus(JobResult.class));
     }
 
     public void markTicketAsSpam(Ticket ticket) {
@@ -780,11 +781,11 @@ public class Zendesk implements Closeable {
                 Collections.singletonMap("user", user))), handle(User.class, "user")));
     }
 
-    public JobStatus<User> createUsers(User... users) {
+    public JobStatus<JobResult> createUsers(User... users) {
         return createUsers(Arrays.asList(users));
     }
 
-    public JobStatus<User> createUsers(List<User> users) {
+    public JobStatus<JobResult> createUsers(List<User> users) {
         return complete(createUsersAsync(users));
     }
 
@@ -793,9 +794,14 @@ public class Zendesk implements Closeable {
                 Collections.singletonMap("user", user))), handle(User.class, "user")));
     }
 
-    public ListenableFuture<JobStatus<User>> createUsersAsync(List<User> users) {
+    public ListenableFuture<JobStatus<JobResult>> createUsersAsync(List<User> users) {
         return submit(req("POST", cnst("/users/create_many.json"), JSON, json(
-                Collections.singletonMap("users", users))), handleJobStatus(User.class));
+                Collections.singletonMap("users", users))), handleJobStatus(JobResult.class));
+    }
+
+    public ListenableFuture<JobStatus<JobResult>> updateUsersAsync(List<User> users) {
+        return submit(req("POST", cnst("/users/update_many.json"), JSON, json(
+                Collections.singletonMap("users", users))), handleJobStatus(JobResult.class));
     }
 
     public User updateUser(User user) {
@@ -1125,17 +1131,17 @@ public class Zendesk implements Closeable {
                 Collections.singletonMap("organization", organization))), handle(Organization.class, "organization")));
     }
 
-    public JobStatus<Organization> createOrganizations(Organization... organizations) {
+    public JobStatus<JobResult> createOrganizations(Organization... organizations) {
         return createOrganizations(Arrays.asList(organizations));
     }
 
-    public JobStatus createOrganizations(List<Organization> organizations) {
+    public JobStatus<JobResult> createOrganizations(List<Organization> organizations) {
         return complete(createOrganizationsAsync(organizations));
     }
 
-    public ListenableFuture<JobStatus<Organization>> createOrganizationsAsync(List<Organization> organizations) {
+    public ListenableFuture<JobStatus<JobResult>> createOrganizationsAsync(List<Organization> organizations) {
         return submit(req("POST", cnst("/organizations/create_many.json"), JSON, json(
-                Collections.singletonMap("organizations", organizations))), handleJobStatus(Organization.class));
+                Collections.singletonMap("organizations", organizations))), handleJobStatus(JobResult.class));
     }
 
     public Organization updateOrganization(Organization organization) {
@@ -1687,7 +1693,7 @@ public class Zendesk implements Closeable {
 
     /**
      * Delete attachment from article.
-     * @param attachment
+     * @param attachment The attachment to delete
      */
     public void deleteArticleAttachment(ArticleAttachments attachment) {
         checkHasId(attachment);
@@ -1950,7 +1956,7 @@ public class Zendesk implements Closeable {
             public T onCompleted(Response response) throws Exception {
                 logResponse(response);
                 if (isStatus2xx(response)) {
-                    return (T) mapper.reader(clazz).readValue(response.getResponseBodyAsStream());
+                    return (T) mapper.readerFor(clazz).readValue(response.getResponseBodyAsStream());
                 } else if (isRateLimitResponse(response)) {
                     throw new ZendeskResponseRateLimitException(response);
                 }

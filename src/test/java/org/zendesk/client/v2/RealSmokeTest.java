@@ -13,6 +13,7 @@ import org.zendesk.client.v2.model.ComplianceDeletionStatus;
 import org.zendesk.client.v2.model.Field;
 import org.zendesk.client.v2.model.Group;
 import org.zendesk.client.v2.model.Identity;
+import org.zendesk.client.v2.model.JobResult;
 import org.zendesk.client.v2.model.JobStatus;
 import org.zendesk.client.v2.model.Organization;
 import org.zendesk.client.v2.model.Priority;
@@ -33,6 +34,7 @@ import org.zendesk.client.v2.model.schedules.Interval;
 import org.zendesk.client.v2.model.schedules.Schedule;
 import org.zendesk.client.v2.model.targets.Target;
 
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -412,30 +414,36 @@ public class RealSmokeTest {
         ticket2.setPriority(Priority.LOW);
         ticket1.setStatus(Status.SOLVED);
         ticket2.setStatus(Status.SOLVED);
+        List<Ticket> tickets = Arrays.asList(ticket1, ticket2);
 
-        JobStatus<Ticket> jobstatus = instance.updateTicketsAsync(Arrays.asList(ticket1, ticket2)).toCompletableFuture().join();
+        JobStatus<JobResult> jobstatus = instance.updateTicketsAsync(tickets).toCompletableFuture().join();
         assertThat(jobstatus.getStatus(), is(JobStatus.JobStatusEnum.queued));
-        //TODO: uncomment the rest of this test once issue #98 is resolved: https://github.com/cloudbees/zendesk-java-client/issues/98
-//        Instant startUpdateAt = Instant.now();
-//        while (instance.getJobStatus(jobstatus).getStatus() != JobStatus.JobStatusEnum.completed
-//                && startUpdateAt.plusSeconds(10).isAfter(Instant.now())) {
-//            Thread.sleep(100);
-//        }
-//        JobStatus<Ticket> completedJobStatus = instance.getJobStatus(jobstatus);
-//        assertThat(completedJobStatus.getStatus(), is(JobStatus.JobStatusEnum.completed));
-//        assertNotNull(jobstatus.getResults());
-//        assertThat(jobstatus.getResults().size(), is(2));
-//        jobstatus.getResults().forEach(ticket -> {
-//            if (ticket.getId().equals(ticket1.getId())) {
-//                assertThat(ticket.getPriority(), is(Priority.HIGH));
-//                assertThat(ticket.getStatus(), is(Status.SOLVED));
-//            } else if (ticket.getId().equals(ticket2.getId())) {
-//                assertThat(ticket.getPriority(), is(Priority.LOW));
-//                assertThat(ticket.getStatus(), is(Status.SOLVED));
-//            } else {
-//                fail("Received a different ticket back in response: " + ticket.getId());
-//            }
-//        });
+        Instant startUpdateAt = Instant.now();
+        while (instance.getJobStatus(jobstatus).getStatus() != JobStatus.JobStatusEnum.completed
+                && startUpdateAt.plusSeconds(10).isAfter(Instant.now())) {
+            Thread.sleep(100);
+        }
+        JobStatus<JobResult> completedJobStatus = instance.getJobStatus(jobstatus);
+        assertThat(completedJobStatus.getStatus(), is(JobStatus.JobStatusEnum.completed));
+        assertNotNull(completedJobStatus.getResults());
+        assertThat(completedJobStatus.getResults().size(), is(2));
+
+        completedJobStatus.getResults().forEach( updateResult -> {
+            assertTrue(updateResult.isSuccess());
+            assertThat(updateResult.getAction(), is(JobResult.JobResultAction.update));
+        });
+
+        tickets.forEach( ticket -> {
+            assertTrue( "Ticket {} not in results" , completedJobStatus.getResults().stream().map(JobResult::getId).anyMatch(i-> ticket.getId().equals(i)));
+        });
+
+        Ticket updatedTicket1 = instance.getTicket(ticket1.getId());
+        assertThat(updatedTicket1.getPriority(), is(Priority.HIGH));
+        assertThat(updatedTicket1.getStatus(), is(Status.SOLVED));
+
+        Ticket updatedTicket2 = instance.getTicket(ticket2.getId());
+        assertThat(updatedTicket2.getPriority(), is(Priority.LOW));
+        assertThat(updatedTicket2.getStatus(), is(Status.SOLVED));
     }
 
     @Test
@@ -722,7 +730,7 @@ public class RealSmokeTest {
         org2.setExternalId("testorg2");
         org2.setName("Test Organization 2");
 
-        JobStatus<Organization> result = instance.createOrganizations(org1, org2);
+        JobStatus<JobResult> result = instance.createOrganizations(org1, org2);
         assertNotNull(result);
         assertNotNull(result.getId());
         assertNotNull(result.getStatus());
@@ -734,12 +742,12 @@ public class RealSmokeTest {
             assertNotNull(result.getStatus());
         }
 
-        List<Organization> resultOrgs = result.getResults();
+        List<JobResult> resultOrgs = result.getResults();
 
         assertEquals(2, resultOrgs.size());
-        for (Organization org : resultOrgs) {
+        for (JobResult org : resultOrgs) {
             assertNotNull(org.getId());
-            instance.deleteOrganization(org);
+            instance.deleteOrganization(org.getId());
         }
     }
 
@@ -1019,7 +1027,7 @@ public class RealSmokeTest {
     }
 
     @Test
-    @Ignore("Failing and I don't know why - caching issue ?")
+    @Ignore("Failing: changing the primary phonenumber cannot be done using createOrUpdateUser; this results in the creation of a new identity")
     // TODO: Fix this test
     public void createOrUpdateUser() throws Exception {
         createClientWithTokenOrPassword();
