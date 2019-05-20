@@ -205,4 +205,17 @@
     </plugins>
   </build>
 
+    <distributionManagement>
+        <repository>
+            <id>servicehouse-releases</id>
+            <name>servicehouse-release</name>
+            <url>https://nexus.swarm.servicehouse.nl/repository/maven-releases</url>
+        </repository>
+        <snapshotRepository>
+            <id>servicehouse-snapshots</id>
+            <name>servicehouse-snapshots</name>
+            <url>https://nexus.swarm.servicehouse.nl/repository/maven-snapshots</url>
+        </snapshotRepository>
+    </distributionManagement>
+
 </project>
